@@ -190,20 +190,11 @@ class ContentExtensionsList(object):
 
     @staticmethod
     def removed(old, new):
-        removed_refs = old.__refs.difference(new.__refs)
-        return old.__filter_extensions(removed_refs)
+        return old.__extensions.difference(new.__extensions)
 
     @staticmethod
     def added(old, new):
-        added_refs = new.__refs.difference(old.__refs)
-        return new.__filter_extensions(added_refs)
-
-    @staticmethod
-    def updated(old, new):
-        common_refs = old.__refs.intersection(new.__refs)
-        old_extensions = old.__filter_extensions(common_refs)
-        new_extensions = new.__filter_extensions(common_refs)
-        return new_extensions.difference(old_extensions)
+        return new.__extensions.difference(old.__extensions)
 
     @property
     def __extensions_dict(self):
@@ -220,22 +211,48 @@ class ContentExtensionsList(object):
         return set(map(self.__get_extension, refs))
 
 
+class ContentExtensionOp(object):
+    pass
+
+
 class ContentExtensionsDiff(object):
     def __init__(self, old_extensions_list, new_extensions_list):
         self.__old_extensions_list = old_extensions_list
         self.__new_extensions_list = new_extensions_list
 
-    def removed(self):
+    def iter_content_changes(self):
+        removed = set()
+        for extension in self.removed_extensions:
+            for channel in extension.channels:
+                for node_id in channel.node_ids:
+                    removed.add((channel.channel_id, 'node_id', node_id))
+                for exclude_node_id in channel.exclude_node_ids:
+                    removed.add((channel.channel_id, 'exclude_node_id', exclude_node_id))
+
+        added = set()
+        for extension in self.added_extensions:
+            for channel in extension.channels:
+                for node_id in channel.node_ids:
+                    added.add((channel.channel_id, 'node_id', node_id))
+                for exclude_node_id in channel.exclude_node_ids:
+                    added.add((channel.channel_id, 'exclude_node_id', exclude_node_id))
+
+    def do_stuff(self):
+        channel_changes = dict()
+
+        for channel_id, op, node_id:
+            channel_ops = channel_changes.setdefault(channel_id, [])
+            channel_ops.append((op, node_id))
+
+    @property
+    def removed_extensions(self):
         return ContentExtensionsList.removed(
             self.__old_extensions_list, self.__new_extensions_list
         )
 
-    def added(self):
+    @property
+    def added_extensions(self):
         return ContentExtensionsList.added(
             self.__old_extensions_list, self.__new_extensions_list
         )
 
-    def updated(self):
-        return ContentExtensionsList.updated(
-            self.__old_extensions_list, self.__new_extensions_list
-        )
